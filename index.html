@@ -126,8 +126,6 @@ footer{text-align:center;color:#888;font-size:14px;padding:20px}
     <button class="tog" id="slow">慢速播放</button>
     <button class="tog gr" id="g3">三年級</button>
     <button class="tog gr" id="g4">四年級</button>
-    <button class="tog un" id="u1" hidden>第一課</button>
-    <button class="tog un" id="u2" hidden>第二課</button>
     <button class="tog" id="tch">老師模式</button>
   </div>
   <nav id="nav"></nav>
@@ -144,10 +142,9 @@ const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls)
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 let slow = false, cur = null, curEl = null;
 let GRADE = 0;                         // 0 = 全班（原本）, 3 = 三年級, 4 = 四年級
-let UNIT = 0;                          // 選了年級後：0 = 兩課都看, 1 = 第一課, 2 = 第二課
-const UT = () => GRADE && UNIT ? (GRADE === 3 ? [1, 3] : [2, 4])[UNIT - 1] : 0;
-const G = arr => { if (!GRADE) return arr; const u = UT(); return arr.filter(x => (!x.g || x.g === GRADE) && (!u || !x.u || x.u === u)); };
-const gname = s => GRADE ? s.replace(/主題 (\d)、(\d)/, (m, a, b) => '主題 ' + (GRADE === 3 ? a : b)) : s;
+const G = arr => GRADE ? arr.filter(x => !x.g || x.g === GRADE) : arr;
+const kname = id => GRADE ? (id <= 2 ? '第一課' : '第二課') : '主題 ' + id;      // 選了年級：主題 1/2 = 第一課，主題 3/4 = 第二課
+const gname = s => GRADE ? s.replace(/主題 (\d)、(\d)/, (m, a) => kname(+a)) : s;
 const player = new Audio();
 function play(file, node, onend) {
   player.pause(); if (curEl) curEl.classList.remove('playing');
@@ -256,20 +253,28 @@ PAGES.home = m => {
   const g = el('div', 'grid big');
   DATA.lessons.filter(L => G(L.words).length).forEach(L => { const c = el('button', 'card lcard', `<span class="no">${L.n}</span><span class="nm">${esc(gname(L.name))}</span><div class="ws">${G(L.words).map(w => esc(w.w)).join('、')}</div>`); c.onclick = () => go('lesson' + L.n); g.appendChild(c); });
   m.appendChild(g);
-  m.appendChild(el('h2', '', UT() ? '這一課的主題' : GRADE ? '兩個主題' : '四個主題'));
+  m.appendChild(el('h2', '', GRADE ? '兩課' : '四個主題'));
   const g2 = el('div', 'grid big');
-  G(DATA.topics).forEach(t => { const c = el('button', 'card lcard', `<span class="no" style="background:${t.color}">${t.id}</span><span class="nm">${esc(t.title)}</span><div class="ws">${esc(t.zh)}</div>`); c.onclick = () => go('topic' + t.id); g2.appendChild(c); });
+  G(DATA.topics).forEach(t => { const c = el('button', 'card lcard', `<span class="no" style="background:${t.color}">${GRADE ? (t.id <= 2 ? 1 : 2) : t.id}</span><span class="nm">${esc(t.title)}</span><div class="ws">${esc(t.zh)}</div>`); c.onclick = () => go('topic' + t.id); g2.appendChild(c); });
   m.appendChild(g2);
 };
 function topicPage(id) { return m => {
   const t = topic(id);
-  m.appendChild(el('h2', '', `主題 ${t.id}　${esc(t.title)}　<span style="font-size:20px;color:#666">${esc(t.zh)}</span>`));
-  m.appendChild(el('h3', id % 2 ? '' : 'b', '單字　點圖片聽發音')); m.appendChild(wordBar(t.words, '主題 ' + t.id)); m.appendChild(wordGrid(t.words));
+  m.appendChild(el('h2', '', `${kname(t.id)}　${esc(t.title)}　<span style="font-size:20px;color:#666">${esc(t.zh)}</span>`));
+  m.appendChild(el('h3', id % 2 ? '' : 'b', '單字　點圖片聽發音')); m.appendChild(wordBar(t.words, kname(t.id))); m.appendChild(wordGrid(t.words));
   if (id === 1) { const f = el('div', 'figure'); f.innerHTML = `<img src="${U('img/' + DATA.extra.thisthat)}" alt="this that these those">`; m.appendChild(f); }
   if (id === 2) { const f = el('div', 'figure'); f.innerHTML = `<img src="${U('img/' + DATA.extra.town)}" alt="town map">`; m.appendChild(f); }
   m.appendChild(el('h3', id % 2 ? '' : 'b', '句型　先聽問句，再聽回答')); m.appendChild(notes(t.note));
   const all = el('button', 'btn or', '全部句子連播'); all.onclick = () => playSeq(t.dialogs.flatMap(d => [d.q.a, d.a.a])); const bar = el('div', 'bar'); bar.appendChild(all); m.appendChild(bar);
   t.dialogs.forEach(d => m.appendChild(dialog(d)));
+  if (!GRADE) return;                  // 以下只有選了年級才顯示：這一課的發音、Daily Talk、問答、對應的堂數
+  const mine = arr => arr.filter(x => x.u === id);
+  mine(DATA.phon).forEach(p => { phonBlock(m, p); });
+  if (mine(DATA.pairs).length) { m.appendChild(el('h3', 'g', '很像的字，耳朵要分清楚')); m.appendChild(pairGrid(mine(DATA.pairs))); }
+  if (mine(DATA.daily).length) { m.appendChild(el('h3', 'c', 'Daily Talk 生活用語')); m.appendChild(dailyGrid(mine(DATA.daily))); }
+  if (mine(DATA.qa).length) { m.appendChild(el('h3', 'p', '問句接答句')); mine(DATA.qa).forEach(x => m.appendChild(qaBox(x))); }
+  m.appendChild(el('h3', 'b', '這一課的練習'));
+  const lb = el('div', 'bar'); DATA.lessons.filter(L => L.topics.length === 2 && L.topics.includes(id)).forEach(L => { const b = el('button', 'btn fill', `第 ${L.n} 堂　${esc(gname(L.name))}`); b.onclick = () => go('lesson' + L.n); lb.appendChild(b); }); m.appendChild(lb);
 }; }
 function lessonPage(n) { return m => {
   const L0 = DATA.lessons[n - 1];
@@ -278,7 +283,7 @@ function lessonPage(n) { return m => {
   const tb = el('div', 'teacher-only tbox', `<b>老師流程（40 分鐘）</b>：${n > 1 ? `小考 ${n - 1}（10 分）→ 訂正（4 分）→ ` : '說明規則、示範四線三格（10 分）→ '}投影單字卡帶念今天的 ${L.words.length} 個單字 → 句型問答連播 → 下面的練習全班一起做 → 單字拼寫本。${n === 12 ? '下課前考小考 12。' : ''}`);
   m.appendChild(tb);
   m.appendChild(el('h3', '', `今天的 ${L.words.length} 個單字`)); m.appendChild(wordBar(L.words, '第 ' + n + ' 堂')); m.appendChild(wordGrid(L.words));
-  const lk = el('div', 'bar'); L.topics.forEach(id => { const b = el('button', 'btn', `主題 ${id} 的單字和句型`); b.onclick = () => go('topic' + id); lk.appendChild(b); });
+  const lk = el('div', 'bar'); L.topics.forEach(id => { const b = el('button', 'btn', `${kname(id)}的單字和句型`.replace(/^(主題 \d)/, '$1 ')); b.onclick = () => go('topic' + id); lk.appendChild(b); });
   m.appendChild(el('h3', 'b', '句型')); m.appendChild(lk);
   if (L0.topics.length === 2) L.topics.forEach(id => topic(id).dialogs.slice(0, n % 4 === 3 || n % 4 === 0 ? 99 : 3).forEach(d => m.appendChild(dialog(d))));
   m.appendChild(el('h3', 'p', '練習 A　聽一聽，選出聽到的字')); m.appendChild(exListen(L.pairs));
@@ -292,19 +297,35 @@ function lessonPage(n) { return m => {
   m.appendChild(nv);
 }; }
 function track(t) { const d = el('div', 'trk', `<b>${esc(t.t)}</b>`); const a = el('audio'); a.controls = true; a.preload = 'none'; a.src = U('audio/' + t.f); a.addEventListener('play', () => player.pause()); d.appendChild(a); return d; }
+function phonBlock(m, p) {
+  m.appendChild(el('h3', p.g === 3 ? '' : 'b', esc(p.title))); m.appendChild(el('div', 'note', esc(p.tip)));
+  p.groups.forEach(g => { const r = el('div', 'bar'); r.appendChild(el('b', '', `<span style="font-size:26px;color:var(--cr);min-width:56px;display:inline-block">${esc(g.k)}</span>`));
+    g.words.forEach(w => { const c = el('button', 'chip', esc(w.w)); c.onclick = () => play(w.a, c); r.appendChild(c); }); m.appendChild(r); });
+  const tw = sentRow(p.twister); tw.querySelector('.tx').insertAdjacentHTML('afterbegin', '<div class="zh">繞口令</div>'); m.appendChild(tw);
+}
+function pairGrid(list) {
+  const g = el('div', 'grid'); g.style.gridTemplateColumns = 'repeat(auto-fill,minmax(210px,1fr))';
+  list.forEach(pr => { const d = el('div', 'pair'); pr.p.forEach((w, k) => { if (k) d.appendChild(el('span', '', '/')); const c = el('button', 'chip', esc(w.w)); c.onclick = () => play(w.a, c); d.appendChild(c); }); g.appendChild(d); });
+  return g;
+}
+function dailyGrid(list) {
+  const g = el('div', 'grid big');
+  list.forEach(d => { const c = el('div', 'card'); c.innerHTML = `<img src="${U('img/' + d.img)}" alt="" loading="lazy"><div class="en">${esc(d.s.t)}</div><div class="zh">${esc(d.s.zh)}</div><div class="zh" style="color:var(--cr)">${esc(d.when)}</div>`;
+    c.style.cursor = 'pointer'; c.onclick = () => play(d.s.a, c);
+    if (d.reply) { const r = el('div', 'bar'); r.style.justifyContent = 'center'; const b = pbtn(d.reply.a, 'm'); r.appendChild(b); r.appendChild(el('span', '', `回答：<b>${esc(d.reply.t)}</b> ${esc(d.reply.zh)}`)); c.appendChild(r); }
+    g.appendChild(c); });
+  return g;
+}
+function qaBox(x) { const box = el('div', 'dlg');
+  const ln = el('div', 'ln'); ln.appendChild(el('span', 'who', 'Q')); ln.appendChild(pbtn(x.q.a)); ln.appendChild(el('div', 'tx', `<div style="font-size:23px">${esc(x.q.t)}</div><div style="font-size:15px;color:#666">${esc(x.q.zh)}</div>`)); box.appendChild(ln);
+  x.a.forEach(a => { const l2 = el('div', 'ln a'); l2.appendChild(el('span', 'who', 'A')); l2.appendChild(pbtn(a.a, 'm')); l2.appendChild(el('div', 'tx', `<div style="font-size:23px">${esc(a.t)}</div>`)); box.appendChild(l2); });
+  return box; }
 PAGES.phonics = m => {
   m.appendChild(el('h2', '', '發音對對碰'));
   m.appendChild(el('p', 'lead', '點單字聽發音，跟著念兩次。'));
-  G(DATA.phon).forEach(p => {
-    m.appendChild(el('h3', p.g === 3 ? '' : 'b', esc(p.title))); m.appendChild(el('div', 'note', esc(p.tip)));
-    p.groups.forEach(g => { const r = el('div', 'bar'); r.appendChild(el('b', '', `<span style="font-size:26px;color:var(--cr);min-width:56px;display:inline-block">${esc(g.k)}</span>`));
-      g.words.forEach(w => { const c = el('button', 'chip', esc(w.w)); c.onclick = () => play(w.a, c); r.appendChild(c); }); m.appendChild(r); });
-    const tw = sentRow(p.twister); tw.querySelector('.tx').insertAdjacentHTML('afterbegin', '<div class="zh">繞口令</div>'); m.appendChild(tw);
-  });
+  G(DATA.phon).forEach(p => phonBlock(m, p));
   m.appendChild(el('h3', 'g', '很像的字，耳朵要分清楚'));
-  const g = el('div', 'grid'); g.style.gridTemplateColumns = 'repeat(auto-fill,minmax(210px,1fr))';
-  G(DATA.pairs).forEach(pr => { const d = el('div', 'pair'); pr.p.forEach((w, k) => { if (k) d.appendChild(el('span', '', '/')); const c = el('button', 'chip', esc(w.w)); c.onclick = () => play(w.a, c); d.appendChild(c); }); g.appendChild(d); });
-  m.appendChild(g);
+  m.appendChild(pairGrid(G(DATA.pairs)));
   m.appendChild(el('h3', 'p', '耳朵大挑戰　聽一聽，是哪一個？'));
   const box = el('div'); m.appendChild(box);
   const again = el('button', 'btn fill', '換一組題目');
@@ -314,12 +335,7 @@ PAGES.phonics = m => {
 PAGES.daily = m => {
   m.appendChild(el('h2', '', 'Daily Talk 生活用語'));
   m.appendChild(el('p', 'lead', '記住每句話「什麼時候說」。點圖片聽發音。'));
-  const g = el('div', 'grid big');
-  G(DATA.daily).forEach(d => { const c = el('div', 'card'); c.innerHTML = `<img src="${U('img/' + d.img)}" alt="" loading="lazy"><div class="en">${esc(d.s.t)}</div><div class="zh">${esc(d.s.zh)}</div><div class="zh" style="color:var(--cr)">${esc(d.when)}</div>`;
-    c.style.cursor = 'pointer'; c.onclick = () => play(d.s.a, c);
-    if (d.reply) { const r = el('div', 'bar'); r.style.justifyContent = 'center'; const b = pbtn(d.reply.a, 'm'); r.appendChild(b); r.appendChild(el('span', '', `回答：<b>${esc(d.reply.t)}</b> ${esc(d.reply.zh)}`)); c.appendChild(r); }
-    g.appendChild(c); });
-  m.appendChild(g);
+  m.appendChild(dailyGrid(G(DATA.daily)));
 };
 PAGES.qa = m => {
   m.appendChild(el('h2', '', '問句接答句'));
@@ -327,10 +343,7 @@ PAGES.qa = m => {
   m.appendChild(notes(GRADE === 3 ? ['What are …? → 回答東西：They\'re ＋東西。', 'Do you …? → Yes, I do. ／ No, I don\'t.　　兩個人回答：Yes, we do. ／ No, we don\'t.']
     : GRADE === 4 ? ['Where …? → 回答地點。　How many …? → 回答數字。', 'Do you …? → Yes, I do. ／ No, I don\'t.　　Does he / she …? → Yes, he does. ／ No, she doesn\'t.']
     : ['What are …? → 回答東西：They\'re ＋東西。', 'Where …? → 回答地點。　How many …? → 回答數字。', 'Do you …? → Yes, I do. ／ No, I don\'t.　　Does he / she …? → Yes, he does. ／ No, she doesn\'t.']));
-  G(DATA.qa).forEach(x => { const box = el('div', 'dlg');
-    const ln = el('div', 'ln'); ln.appendChild(el('span', 'who', 'Q')); ln.appendChild(pbtn(x.q.a)); ln.appendChild(el('div', 'tx', `<div style="font-size:23px">${esc(x.q.t)}</div><div style="font-size:15px;color:#666">${esc(x.q.zh)}</div>`)); box.appendChild(ln);
-    x.a.forEach(a => { const l2 = el('div', 'ln a'); l2.appendChild(el('span', 'who', 'A')); l2.appendChild(pbtn(a.a, 'm')); l2.appendChild(el('div', 'tx', `<div style="font-size:23px">${esc(a.t)}</div>`)); box.appendChild(l2); });
-    m.appendChild(box); });
+  G(DATA.qa).forEach(x => m.appendChild(qaBox(x)));
 };
 PAGES.tracks = m => {
   m.appendChild(el('h2', '', '講義聽力音檔'));
@@ -356,16 +369,13 @@ function render() {
   player.pause(); const m = $('#main'); m.innerHTML = ''; PAGES[id](m);
   const nav = $('#nav'); nav.innerHTML = '';
   const shown = k => /^topic/.test(k) ? G([topic(+k.slice(5))]).length : /^lesson/.test(k) ? G(DATA.lessons[+k.slice(6) - 1].words).length : 1;
-  NAV.filter(([k]) => shown(k)).forEach(([k, t]) => { const b = el('button', k === id ? 'on' : '', t); b.onclick = () => go(k); nav.appendChild(b); });
+  NAV.filter(([k]) => shown(k)).forEach(([k, t]) => { const b = el('button', k === id ? 'on' : '', /^topic/.test(k) ? kname(+k.slice(5)) : t); b.onclick = () => go(k); nav.appendChild(b); });
   window.scrollTo(0, 0);
 }
-function setUnit(u) { UNIT = u; $('#u1').classList.toggle('on', u === 1); $('#u2').classList.toggle('on', u === 2); try { localStorage.setItem('rd_unit', u ? String(u) : ''); } catch (x) {} }
-function setGrade(g) { GRADE = g; $('#g3').classList.toggle('on', g === 3); $('#g4').classList.toggle('on', g === 4); $('#u1').hidden = $('#u2').hidden = !g; try { localStorage.setItem('rd_grade', g ? String(g) : ''); } catch (x) {} }
-$('#g3').onclick = () => { setGrade(GRADE === 3 ? 0 : 3); setUnit(0); render(); };
-$('#g4').onclick = () => { setGrade(GRADE === 4 ? 0 : 4); setUnit(0); render(); };
-$('#u1').onclick = () => { setUnit(UNIT === 1 ? 0 : 1); render(); };
-$('#u2').onclick = () => { setUnit(UNIT === 2 ? 0 : 2); render(); };
-try { const s = +localStorage.getItem('rd_grade'); if (s === 3 || s === 4) { setGrade(s); const u = +localStorage.getItem('rd_unit'); if (u === 1 || u === 2) setUnit(u); } } catch (x) {}
+function setGrade(g) { GRADE = g; $('#g3').classList.toggle('on', g === 3); $('#g4').classList.toggle('on', g === 4); try { localStorage.setItem('rd_grade', g ? String(g) : ''); } catch (x) {} }
+$('#g3').onclick = () => { setGrade(GRADE === 3 ? 0 : 3); render(); };
+$('#g4').onclick = () => { setGrade(GRADE === 4 ? 0 : 4); render(); };
+try { const s = +localStorage.getItem('rd_grade'); if (s === 3 || s === 4) setGrade(s); } catch (x) {}
 window.addEventListener('hashchange', render);
 $('#slow').onclick = e => { slow = !slow; e.target.classList.toggle('on', slow); };
 $('#tch').onclick = e => { const on = document.body.classList.toggle('teacher'); e.target.classList.toggle('on', on); try { localStorage.setItem('rd_teacher', on ? '1' : ''); } catch (x) {} };
