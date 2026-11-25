@@ -248,6 +248,13 @@ document.addEventListener('keydown', e => { if (!$('#proj').classList.contains('
 const topic = id => DATA.topics.find(t => t.id === id);
 const PAGES = {};
 PAGES.home = m => {
+  if (GRADE) {                          // 選了年級：首頁只列課次
+    m.appendChild(el('h2', '', (GRADE === 3 ? '三年級' : '四年級') + '　選一課'));
+    m.appendChild(el('p', 'lead', '每一課都有單字、句型、發音、Daily Talk、問答和練習。'));
+    const g = el('div', 'grid big');
+    G(DATA.topics).forEach(t => { const c = el('button', 'card lcard', `<span class="no" style="background:${t.color};width:auto;padding:0 12px;border-radius:19px">${kname(t.id)}</span><span class="nm">${esc(t.title)}</span><div class="ws">${esc(t.zh)}：${t.words.map(w => esc(w.w)).join('、')}</div>`); c.onclick = () => go('topic' + t.id); g.appendChild(c); });
+    m.appendChild(g); return;
+  }
   m.appendChild(el('h2', '', '12 堂課'));
   m.appendChild(el('p', 'lead', '選一堂課：聽單字、聽句子，再做聽力和拼字練習。'));
   const g = el('div', 'grid big');
@@ -273,8 +280,11 @@ function topicPage(id) { return m => {
   if (mine(DATA.pairs).length) { m.appendChild(el('h3', 'g', '很像的字，耳朵要分清楚')); m.appendChild(pairGrid(mine(DATA.pairs))); }
   if (mine(DATA.daily).length) { m.appendChild(el('h3', 'c', 'Daily Talk 生活用語')); m.appendChild(dailyGrid(mine(DATA.daily))); }
   if (mine(DATA.qa).length) { m.appendChild(el('h3', 'p', '問句接答句')); mine(DATA.qa).forEach(x => m.appendChild(qaBox(x))); }
-  m.appendChild(el('h3', 'b', '這一課的練習'));
-  const lb = el('div', 'bar'); DATA.lessons.filter(L => L.topics.length === 2 && L.topics.includes(id)).forEach(L => { const b = el('button', 'btn fill', `第 ${L.n} 堂　${esc(gname(L.name))}`); b.onclick = () => go('lesson' + L.n); lb.appendChild(b); }); m.appendChild(lb);
+  const pool = (key, sig) => { const seen = new Set(); return DATA.lessons.flatMap(L => L[key]).filter(x => x.g === GRADE && x.u === id && !seen.has(sig(x)) && seen.add(sig(x))); };
+  m.appendChild(el('h3', 'p', '練習 A　聽一聽，選出聽到的字')); m.appendChild(exListen(pool('pairs', x => x.opts.join('|') + '>' + x.ans)));
+  m.appendChild(el('h3', 'p', '練習 B　看圖聽音，拼出單字')); m.appendChild(exSpell(t.words));
+  m.appendChild(el('h3', 'p', '練習 C　選出正確的回答')); m.appendChild(exQA(pool('qa', x => x.q.t + '|' + x.opts.join('|'))));
+  m.appendChild(el('h3', 'p', '練習 D　看圖回答問題')); m.appendChild(exSpeak(pool('speak', x => x.img + '|' + x.q.t)));
 }; }
 function lessonPage(n) { return m => {
   const L0 = DATA.lessons[n - 1];
@@ -365,10 +375,10 @@ const NAV = [['home', '首頁']].concat(DATA.lessons.map(L => ['lesson' + L.n, '
 DATA.lessons.forEach(L => PAGES['lesson' + L.n] = lessonPage(L.n)); DATA.topics.forEach(t => PAGES['topic' + t.id] = topicPage(t.id));
 function go(id) { location.hash = id; }
 function render() {
-  let id = location.hash.slice(1); if (!PAGES[id] || (/^topic/.test(id) && !G([topic(+id.slice(5))]).length) || (/^lesson/.test(id) && !G(DATA.lessons[+id.slice(6) - 1].words).length)) id = 'home';
+  let id = location.hash.slice(1); if (!PAGES[id] || (/^topic/.test(id) && !G([topic(+id.slice(5))]).length) || (/^lesson/.test(id) && GRADE)) id = 'home';
   player.pause(); const m = $('#main'); m.innerHTML = ''; PAGES[id](m);
   const nav = $('#nav'); nav.innerHTML = '';
-  const shown = k => /^topic/.test(k) ? G([topic(+k.slice(5))]).length : /^lesson/.test(k) ? G(DATA.lessons[+k.slice(6) - 1].words).length : 1;
+  const shown = k => /^topic/.test(k) ? G([topic(+k.slice(5))]).length : /^lesson/.test(k) ? !GRADE : 1;
   NAV.filter(([k]) => shown(k)).forEach(([k, t]) => { const b = el('button', k === id ? 'on' : '', /^topic/.test(k) ? kname(+k.slice(5)) : t); b.onclick = () => go(k); nav.appendChild(b); });
   window.scrollTo(0, 0);
 }
