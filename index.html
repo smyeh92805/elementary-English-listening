@@ -143,12 +143,18 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':
 let slow = false, cur = null, curEl = null;
 let GRADE = 0;                         // 0 = 全班（原本）, 3 = 三年級, 4 = 四年級
 const G = arr => GRADE ? arr.filter(x => !x.g || x.g === GRADE) : arr;
-const kname = id => GRADE ? (id <= 2 ? '第一課' : '第二課') : '主題 ' + id;      // 選了年級：主題 1/2 = 第一課，主題 3/4 = 第二課
+const kname = id => GRADE ? (id <= 2 ? '第三課' : '第四課') : '主題 ' + id;      // 選了年級：主題 1/2 = 課本第三課，主題 3/4 = 課本第四課
 const gname = s => GRADE ? s.replace(/主題 (\d)、(\d)/, (m, a) => kname(+a)) : s;
 const player = new Audio();
+const BLOBS = {};
+function AU(file) {
+  const u = U('audio/' + file); if (u.slice(0, 5) !== 'data:') return u;
+  if (!BLOBS[file]) { try { const i = u.indexOf(','), bin = atob(u.slice(i + 1)), arr = new Uint8Array(bin.length); for (let k = 0; k < bin.length; k++) arr[k] = bin.charCodeAt(k); BLOBS[file] = URL.createObjectURL(new Blob([arr], { type: 'audio/mpeg' })); } catch (x) { return u; } }
+  return BLOBS[file];
+}
 function play(file, node, onend) {
   player.pause(); if (curEl) curEl.classList.remove('playing');
-  player.src = U('audio/' + file); player.playbackRate = slow ? 0.7 : 1;
+  player.src = AU(file); player.playbackRate = slow ? 0.7 : 1;
   curEl = node || null; if (curEl) curEl.classList.add('playing');
   player.onended = () => { if (curEl) curEl.classList.remove('playing'); curEl = null; if (onend) onend(); };
   player.play().catch(() => {});
